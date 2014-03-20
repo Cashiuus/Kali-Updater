@@ -1,27 +1,33 @@
 #!/usr/bin/env python
+#
 #	Target Release:		3.x
+#	Version:			1.0
+#	Created by: 		cashiuus@gmail.com
 #
-#
-#
+# This script will update core Kali, update known Git clones,
+# and other trivial maintenance tasks
+
 from __future__ import print_function
 import os
 import subprocess
 import sys
 import time
 
-# Set configurable settings
-tdelay = 2
-myTools = '/usr/tools'
-myWordlists = '/wordlists'
+#    Set configurable settings  #
+# ------------------------------#
+tdelay 			= 2				# Delay script for network latency
+fixportmapper 	= FALSE			# Want to fix portmapper issue at boot?
 
+#    List your GIT CLONES here
 listTools = [
-	'/usr/share/veil',
-	'/opt/geany'
+	'/usr/share/veil',			# Veil evasion framework
+	'/opt/geany'				# Simple IDE interface
 ]
 
-# ----------------------------
-#             BEGIN
-# ----------------------------
+
+# ----------------------------#
+#             BEGIN           #
+# ----------------------------#
 # Check if user is root
 if not (os.geteuid() == 0):
 	useSudo = input("[-] Not running as root. Continue using sudo? [y or n]")
@@ -32,7 +38,7 @@ if not (os.geteuid() == 0):
 		exit(1)
 
 
-# Update Kali distro
+#    Update Kali distro using Aptitude   #
 def core_update():
 	print("[+] Now updating Kali and Packages...")
 	try:
@@ -50,26 +56,33 @@ def core_update():
 def get_versions():
 	pVersion = sys.version_info[0]	# major version
 	pVersion2 = sys.version_info[1]	# minor version
-	pVersion = str(pVersion)
-	pVersion2 = str(pVersion2)
-	print("\t[*] Python Version:\t", pVersion, ".", pVersion2, ".x", sep='')
+	print("\t[*] Python Version:\t", str(pVersion), ".", str(pVersion2), ".x", sep='')
 
-	out_bytes = subprocess.check_output(['ruby', '-v'])
-	out_text = out_bytes.decode('UTF-8')
-	out_text = out_text.split(' ')
-	rVersion = out_text[1]
-	print("\t[*] Ruby Version:\t", rVersion, sep='')
+	try:
+		out_bytes = subprocess.check_output(['ruby', '-v'])
+		out_text = out_bytes.decode('UTF-8')
+		out_text = out_text.split(' ')
+		rVersion = out_text[1]
+		print("\t[*] Ruby Version:\t", rVersion, sep='')
+	except:
+		print("\t[*] Ruby Version:\t Not Installed", sep='')
 
-	out_bytes = subprocess.check_output(['gem', '-v'])
-	gVersion = out_bytes.decode('UTF-8')
-	gVersion = gVersion.rstrip()
-	print("\t[*] Gem Version:\t", gVersion, sep='')
+	try:
+		out_bytes = subprocess.check_output(['gem', '-v'])
+		gVersion = out_bytes.decode('UTF-8')
+		gVersion = gVersion.rstrip()
+		print("\t[*] Gem Version:\t", gVersion, sep='')
+	except:
+		print("\t[*] Gem Version:\t Not Installed", sep='')
 
-	out_bytes = subprocess.check_output(['bundle', '-v'])
-	out_text = out_bytes.decode('UTF-8')
-	out_text = out_text.split(' ')
-	bVersion = out_text[2]
-	print("\t[*] Bundle Version:\t", bVersion, sep='')
+	try:
+		out_bytes = subprocess.check_output(['bundle', '-v'])
+		out_text = out_bytes.decode('UTF-8')
+		out_text = out_text.split(' ')
+		bVersion = out_text[2]
+		print("\t[*] Bundle Version:\t", bVersion, sep='')
+	except:
+		print("\t[*] Bundle Version:\t Not Installed", sep='')
 	return
 
 
@@ -82,6 +95,12 @@ def update_extras():
 		time.sleep(tdelay)
 	return len(listTools)
 
+def maint_tasks():
+	if fixportmapper == TRUE:
+		os.system("update-rc.d rpcbind defaults")
+		time.sleep(tdelay)
+		os.system("update-rc.d rpcbind enable")
+	return
 
 def main():
 	core_update()
@@ -90,6 +109,7 @@ def main():
 	print("[+] Now updating Github cloned repositories...")
 	repoCount = update_extras()
 	print("\n[+] Repo updates complete. Updated:",str(repoCount),"repositories.")
+	maint_tasks()
 	return
 
 if __name__ == '__main__':
