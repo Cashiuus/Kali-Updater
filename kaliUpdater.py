@@ -13,29 +13,35 @@ import subprocess
 import sys
 import time
 
+# ----------------------------- #
 #    Set configurable settings  #
-# ------------------------------#
+# ----------------------------- #
 tdelay 			= 2				# Delay script for network latency
-fixportmapper 	= FALSE			# Want to fix portmapper issue at boot?
+fixportmapper 	= False			# Want to fix portmapper issue at boot?
+gitcolorize		= True			# Enabled config option for 'color.ui'
 
-#    List your GIT CLONES here
+#    List your existing GIT CLONES here
 listTools = [
 	'/usr/share/veil',			# Veil evasion framework
+	'/usr/share/creds',			# Easy Creds tool
+	'/usr/share/golismero',		# Golismero 2.0 testing framework
+	'/usr/share/dradis/server',	# Dradis framework
+	'/usr/share/Responder',		# Responder NTLM credential monitor
+	'/usr/share/weevely',		# PHP Web shell for post-ex
+	'/usr/share/w3af',			# OSS Web App Vuln Scanner
 	'/opt/geany'				# Simple IDE interface
 ]
 
 
-# ----------------------------#
-#             BEGIN           #
-# ----------------------------#
+# ---------------------------- #
+#              BEGIN           #
+# ---------------------------- #
 # Check if user is root
-if not (os.geteuid() == 0):
-	useSudo = input("[-] Not running as root. Continue using sudo? [y or n]")
-	if (useSudo == 'y'):
-		useSudo = 'sudo'
-		pass
-	else:
+def root_check():
+	if not (os.geteuid() == 0):
+		print("[-] Not currently root user. Please try again.")
 		exit(1)
+	return
 
 
 #    Update Kali distro using Aptitude   #
@@ -43,7 +49,7 @@ def core_update():
 	print("[+] Now updating Kali and Packages...")
 	try:
 		os.system("apt-get -qq update && apt-get -y dist-upgrade && apt-get -y autoclean")
-		print("[+] Successfully updated Kali")
+		print("[+] Successfully updated Kali...moving along...")
 	except:
 		print("[-] Error attempting to update Kali. Please try again later.")
 
@@ -85,10 +91,10 @@ def get_versions():
 		print("\t[*] Bundle Version:\t Not Installed", sep='')
 	return
 
-
+# TODO: Catch exceptions when Git fails update because local file was modified
 def update_extras():
 	for i in listTools:
-		print("Repository:",i,"\t", sep='')
+		print("\nRepository:",i,"\t", sep='')
 		os.chdir(i)
 		time.sleep(tdelay)
 		subprocess.call('git pull', shell=True)
@@ -96,20 +102,22 @@ def update_extras():
 	return len(listTools)
 
 def maint_tasks():
-	if fixportmapper == TRUE:
+	if gitcolorize == True:
+		os.system("git config --global color.ui auto")
+	if fixportmapper == True:
 		os.system("update-rc.d rpcbind defaults")
 		time.sleep(tdelay)
 		os.system("update-rc.d rpcbind enable")
 	return
 
 def main():
+	maint_tasks()
 	core_update()
 	print("[+] Kali core update is complete. Listing support versions below:")
 	get_versions()
 	print("[+] Now updating Github cloned repositories...")
 	repoCount = update_extras()
-	print("\n[+] Repo updates complete. Updated:",str(repoCount),"repositories.")
-	maint_tasks()
+	print("\n[+] Repo updates complete. Updated:",str(repoCount),"repositories.\n")
 	return
 
 if __name__ == '__main__':
