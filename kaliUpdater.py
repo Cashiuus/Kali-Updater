@@ -18,37 +18,40 @@ import time
 # ----------------------------- #
 tdelay 			= 2				# Delay script for network latency
 fixportmapper 	= False			# Want to fix portmapper issue at boot?
-gitcolorize		= True			# Enabled config option for 'color.ui'
+gitcolorize		= True			# This Enables git config option for 'color.ui'
 
 #    List your existing GIT CLONES here
+#    TODO: Get existing git clones automatically; only known way is too slow
+#			If I can find them in background during core update, would be ideal
 listTools = [
 	'/usr/share/veil',			# Veil evasion framework
 	'/usr/share/creds',			# Easy Creds tool
-	'/usr/share/golismero',		# Golismero 2.0 testing framework
-	'/usr/share/dradis/server',	# Dradis framework
 	'/usr/share/Responder',		# Responder NTLM credential monitor
-	'/usr/share/weevely',		# PHP Web shell for post-ex
-	'/usr/share/w3af',			# OSS Web App Vuln Scanner
+	'/opt/smbexec',				# https://github.com/pentestgeek/smbexec
 	'/opt/geany'				# Simple IDE interface
 ]
 
 
-# ---------------------------- #
-#              BEGIN           #
-# ---------------------------- #
+# ----------------------------- #
+#              BEGIN            #
+# ----------------------------- #
 # Check if user is root
 def root_check():
 	if not (os.geteuid() == 0):
-		print("[-] Not currently root user. Please try again.")
+		print("[-] Not currently root user. Please fix.")
 		exit(1)
 	return
 
 
-#    Update Kali distro using Aptitude   #
+#    Update Kali core distro using Aptitude   #
 def core_update():
+	addrepo = raw_input("\n[*] Would you like to add the Kali Bleeding Edge Repo? [y,n]: ")
+	if (addrepo == 'y'):
+		os.system("echo deb http://repo.kali.org/kali kali-bleeding-edge main >> /etc/apt/sources.list")
 	print("[+] Now updating Kali and Packages...")
 	try:
 		os.system("apt-get -qq update && apt-get -y dist-upgrade && apt-get -y autoclean")
+		os.system("updatedb")
 		print("[+] Successfully updated Kali...moving along...")
 	except:
 		print("[-] Error attempting to update Kali. Please try again later.")
@@ -94,12 +97,15 @@ def get_versions():
 # TODO: Catch exceptions when Git fails update because local file was modified
 def update_extras():
 	for i in listTools:
-		print("\nRepository:",i,"\t", sep='')
-		os.chdir(i)
-		time.sleep(tdelay)
-		subprocess.call('git pull', shell=True)
-		time.sleep(tdelay)
-	return len(listTools)
+		print("\nChecking Repository:", i,"\t", sep='')
+		try:
+			os.chdir(i)
+			time.sleep(tdelay)
+			subprocess.call('git pull', shell=True)
+			time.sleep(tdelay)
+		except Exception as e:
+			print("[-] This path does not exist:\n\t", e)
+	return
 
 def maint_tasks():
 	if gitcolorize == True:
@@ -117,7 +123,7 @@ def main():
 	get_versions()
 	print("[+] Now updating Github cloned repositories...")
 	repoCount = update_extras()
-	print("\n[+] Repo updates complete. Updated:",str(repoCount),"repositories.\n")
+	print("\n[+] Kali Updater is now complete. Goodbye!")
 	return
 
 if __name__ == '__main__':
