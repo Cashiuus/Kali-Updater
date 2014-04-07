@@ -23,14 +23,11 @@ gitcolorize		= True			# This Enables git config option for 'color.ui'
 #    List your existing GIT CLONES here
 #    TODO: Get existing git clones automatically; only known way is too slow
 #			If I can find them in background during core update, would be ideal
-listTools = [
-	'/usr/share/veil',			# Veil evasion framework
-	'/usr/share/creds',			# Easy Creds tool
-	'/usr/share/Responder',		# Responder NTLM credential monitor
-	'/opt/smbexec',				# https://github.com/pentestgeek/smbexec
-	'/opt/geany'				# Simple IDE interface
-]
-
+dictTools = {
+	'/usr/share/veil':'https://github.com/Veil-Framework/Veil',
+	'/usr/share/creds':'https://github.com/DanMcInerney/creds.py',
+	'/opt/smbexec':'https://github.com/pentestgeek/smbexec',
+}
 
 # ----------------------------- #
 #              BEGIN            #
@@ -96,15 +93,19 @@ def get_versions():
 
 # TODO: Catch exceptions when Git fails update because local file was modified
 def update_extras():
-	for i in listTools:
-		print("\nChecking Repository:", i,"\t", sep='')
+	for i, url in dictTools.iteritems():
+		print("\nChecking Repository:", str(i),"\t", sep='')
 		try:
-			os.chdir(i)
+			os.chdir(str(i))
 			time.sleep(tdelay)
 			subprocess.call('git pull', shell=True)
 			time.sleep(tdelay)
 		except Exception as e:
 			print("[-] This path does not exist:\n\t", e)
+			createMe = raw_input("Setup this Git Clone now? [y,n]: ")
+			if(createMe == 'y'):
+				subprocess.call('mkdir ' + str(i), shell=True)
+				subprocess.call('git clone ' + str(url) + '.git ' + str(i), shell=True)
 	return
 
 def maint_tasks():
@@ -122,7 +123,7 @@ def main():
 	print("[+] Kali core update is complete. Listing support versions below:")
 	get_versions()
 	print("[+] Now updating Github cloned repositories...")
-	repoCount = update_extras()
+	update_extras()
 	print("\n[+] Kali Updater is now complete. Goodbye!")
 	return
 
