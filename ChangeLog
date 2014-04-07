@@ -1,5 +1,16 @@
 A complete changelog can be found at: https://github.com/Cashiuus/
 
+
+~~~~~~~~~~~~~~~~~~~
+Date	2014-03-20
+Version 1.1
+~~~~~~~~~~~~~~~~~~~
+	- Changed git clones list to a dictionary with each Git URL as value
+	- Added ability to setup new git clone when dict item doesn't exist
+	- Added option to add "Kali Bleeding Edge" repo to sources.list file
+	- Fixed "raw_input()" to work in both Python 2.x and 3.x
+
+
 ~~~~~~~~~~~~~~~~~~~
 Date	2014-03-20
 Version 1.0

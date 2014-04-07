@@ -39,10 +39,15 @@ def root_check():
 		exit(1)
 	return
 
+# Setup Python 2 & 3 'raw_input' compatibility
+try:
+	input = raw_input
+except NameError:
+	pass
 
 #    Update Kali core distro using Aptitude   #
 def core_update():
-	addrepo = raw_input("\n[*] Would you like to add the Kali Bleeding Edge Repo? [y,n]: ")
+	addrepo = input("\n[*] Would you like to add the Kali Bleeding Edge Repo? [y,n]: ")
 	if (addrepo == 'y'):
 		os.system("echo deb http://repo.kali.org/kali kali-bleeding-edge main >> /etc/apt/sources.list")
 	print("[+] Now updating Kali and Packages...")
@@ -102,7 +107,7 @@ def update_extras():
 			time.sleep(tdelay)
 		except Exception as e:
 			print("[-] This path does not exist:\n\t", e)
-			createMe = raw_input("Setup this Git Clone now? [y,n]: ")
+			createMe = input("Setup this Git Clone now? [y,n]: ")
 			if(createMe == 'y'):
 				subprocess.call('mkdir ' + str(i), shell=True)
 				subprocess.call('git clone ' + str(url) + '.git ' + str(i), shell=True)
