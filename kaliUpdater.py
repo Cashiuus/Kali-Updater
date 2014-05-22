@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 #
-#	Target Release:		3.x
+#	Target Release:		Python 3.x with 2.x support
 #	Version:			1.0
 #	Created by: 		cashiuus@gmail.com
 #
-# This script will update core Kali, update known Git clones,
-# and other trivial maintenance tasks
+# Functionality:
+#   1. Add Bleeding Edge Repository
+#   2. Update & Upgrade all Kali apps using 'apt-get'
+#   3. Update defined list of Git Clones; if nonexistant you can add them
 
 from __future__ import print_function
 import os
@@ -20,6 +22,7 @@ tdelay 			= 2				# Delay script for network latency
 fixportmapper 	= False			# Want to fix portmapper issue at boot?
 gitcolorize		= True			# This Enables git config option for 'color.ui'
 
+
 #    List your existing GIT CLONES here
 #    TODO: Get existing git clones automatically; only known way is too slow
 #			If I can find them in background during core update, would be ideal
@@ -29,10 +32,14 @@ dictTools = {
 	'/opt/smbexec':'https://github.com/pentestgeek/smbexec',
 }
 
+
+
 # ----------------------------- #
 #              BEGIN            #
 # ----------------------------- #
-# Check if user is root
+
+# Check - Root user
+#
 def root_check():
 	if not (os.geteuid() == 0):
 		print("[-] Not currently root user. Please fix.")
@@ -40,16 +47,15 @@ def root_check():
 	return
 
 # Setup Python 2 & 3 'raw_input' compatibility
+#
 try:
 	input = raw_input
 except NameError:
 	pass
 
-#    Update Kali core distro using Aptitude   #
+#    Update Kali core distro using Aptitude
+#
 def core_update():
-	addrepo = input("\n[*] Would you like to add the Kali Bleeding Edge Repo? [y,n]: ")
-	if (addrepo == 'y'):
-		os.system("echo deb http://repo.kali.org/kali kali-bleeding-edge main >> /etc/apt/sources.list")
 	print("[+] Now updating Kali and Packages...")
 	try:
 		os.system("apt-get -qq update && apt-get -y dist-upgrade && apt-get -y autoclean")
@@ -60,6 +66,28 @@ def core_update():
 
 	time.sleep(tdelay)
 	return
+
+
+# -----
+# Checking Repository List file
+#
+def bleedingRepoCheck():
+	bleeding = 'deb http://repo.kali.org/kali kali-bleeding-edge main'
+	repoFile = open('/etc/apt/sources.list', 'r')
+
+	for line in repoFile.readlines():
+		if bleeding == line.rstrip():
+			check = 1
+			break
+		else:
+			check = 0
+	print("[*DEBUG*] bleedingRepoCheck - check var = ", check)
+	if check == 0:
+		addrepo = input("\n[*] Would you like to add the Kali Bleeding Edge Repo? [y,n]: ")
+		if (addrepo == 'y'):
+			os.system("echo deb http://repo.kali.org/kali kali-bleeding-edge main >> /etc/apt/sources.list")
+	return
+
 
 
 # TODO: Add code to compare current versions with those found present
@@ -125,7 +153,7 @@ def maint_tasks():
 def main():
 	maint_tasks()
 	core_update()
-	print("[+] Kali core update is complete. Listing support versions below:")
+	print("[+] Kali core update is complete. Listing utility bundle versions below:")
 	get_versions()
 	print("[+] Now updating Github cloned repositories...")
 	update_extras()
