@@ -11,6 +11,7 @@
 
 from __future__ import print_function
 import os
+import platform
 import subprocess
 import sys
 import time
@@ -32,26 +33,25 @@ dictTools = {
 	'/opt/smbexec':'https://github.com/pentestgeek/smbexec',
 }
 
-
-
-# ----------------------------- #
-#              BEGIN            #
-# ----------------------------- #
-
-# Check - Root user
-#
-def root_check():
-	if not (os.geteuid() == 0):
-		print("[-] Not currently root user. Please fix.")
-		exit(1)
-	return
-
 # Setup Python 2 & 3 'raw_input' compatibility
 #
 try:
 	input = raw_input
 except NameError:
 	pass
+
+# ----------------------------- #
+#              BEGIN            #
+# ----------------------------- #
+
+# Check - Root user
+# TODO: If not root, run with sudo
+def root_check():
+	if not (os.geteuid() == 0):
+		print("[-] Not currently root user. Please fix.")
+		exit(1)
+	return
+
 
 #    Update Kali core distro using Aptitude
 #
@@ -68,7 +68,7 @@ def core_update():
 	return
 
 
-# -----
+# -----------------------------
 # Checking Repository List file
 #
 def bleedingRepoCheck():
@@ -81,9 +81,8 @@ def bleedingRepoCheck():
 			break
 		else:
 			check = 0
-	print("[*DEBUG*] bleedingRepoCheck - check var = ", check)
 	if check == 0:
-		addrepo = input("\n[*] Would you like to add the Kali Bleeding Edge Repo? [y,n]: ")
+		addrepo = input("\n[*] Would you like to add the Kali Bleeding Edge Repo? [y,N]: ")
 		if (addrepo == 'y'):
 			os.system("echo deb http://repo.kali.org/kali kali-bleeding-edge main >> /etc/apt/sources.list")
 	return
@@ -91,7 +90,7 @@ def bleedingRepoCheck():
 
 
 # TODO: Add code to compare current versions with those found present
-# Get installed version of supporting programming applications
+# Get installed version of supporting programming applications with dpkg
 def get_versions():
 	pVersion = sys.version_info[0]	# major version
 	pVersion2 = sys.version_info[1]	# minor version
@@ -150,6 +149,11 @@ def maint_tasks():
 		os.system("update-rc.d rpcbind enable")
 	return
 
+
+
+# ------------------------
+#          MAIN
+# ------------------------
 def main():
 	maint_tasks()
 	core_update()
