@@ -16,7 +16,15 @@ import os
 import shutil
 import subprocess
 import sys
+import tarfile
 import time
+
+try:
+    # Customized version of the "default.py" file
+    from settings import *
+except:
+    # If "settings.py" doesn't exist, import default instead
+    from default import *
 
 # ----------------------------- #
 #    Set configurable settings  #
@@ -24,7 +32,9 @@ import time
 tdelay          = 2             # Delay script for network latency
 fixportmapper   = False         # Want to fix portmapper issue at boot?
 gitcolorize     = True          # This Enables git config option for 'color.ui'
-DO_CHROME       = True         # Setup system for Google Chrome
+DO_BACKUPS      = True          # Backup user-specified files to an archive file
+DO_CHROME       = False         # Setup system for Google Chrome
+DO_GIT_REPOS    = True         # Update all known Git repositories with 'git pull'
 UPDATE_VEIL     = True          # Update the Veil framework using its own script
 GIT_BASE_DIR    = os.path.expanduser('~/git')
 
@@ -287,6 +297,39 @@ def maint_tasks():
         subprocess.call("update-rc.d rpcbind enable", shell=True)
     return
 
+def ignore_file(f):
+    if f in dotfiles_ignore:
+        return True
+    else:
+        return False
+
+
+def backup_files(files, dest):
+    if not os.path.isdir(BACKUP_PATH):
+        try:
+            os.makedirs(BACKUP_PATH, mode=0o711)
+        except:
+            print("[-] Error creating backup folders")
+            return False
+
+    # Create the compressed archive the files will be sent to
+    zname = BACKUP_PATH + os.sep + 'daily-' + time.strftime('%Y%m%d') + '.tar.gz'
+    if os.path.exists(zname):
+        response = input("[-] The backup destination file already exists, overwrite? [y, N]: ")
+        if response != 'y':
+            return False
+    z = tarfile.open(zname, mode='w:gz')
+
+    # Iter through dotfiles
+    for f in os.listdir(usr):
+        fpath = os.path.join(usr, f)
+        if f.startswith('.') and not os.path.isdir(fpath):
+            if f not in dotfiles_ignore:
+                # Add to archive if it is not in the excluded files list
+                z.add(fpath)
+    z.close()
+    return True
+
 
 # ------------------------
 #          MAIN
@@ -296,14 +339,22 @@ def main():
     core_update()
     print("[+] Kali core update is complete. Listing utility bundle versions below:")
     get_versions()
-    print("[+] Now updating Github cloned repositories...")
-    do_git_apps(GIT_BASE_DIR, normal_git_tools)
-    do_git_apps('/opt', special_git_tools)
+    if DO_GIT_REPOS:
+        print("[+] Now updating Github cloned repositories...")
+        do_git_apps(GIT_BASE_DIR, normal_git_tools)
+        do_git_apps('/opt', special_git_tools)
     # Check for Google Chrome
     if DO_CHROME:
         setup_chrome()
     print("\n[+] Kali Updater is now complete. Goodbye!")
+
+    if DO_BACKUPS:
+        if backup_files(BACKUP_FILES, BACKUP_PATH) is True:
+            print("[*] Backups successfully saved to: {}".format(BACKUP_PATH))
+        else:
+            print("[-] Backups failed to complete")
     return
+
 
 if __name__ == '__main__':
     main()

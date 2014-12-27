@@ -2,6 +2,8 @@
 ## Eclipse
 #################
 
+settings.py
+settings.pyc
 *.pydevproject
 .project
 .metadata
