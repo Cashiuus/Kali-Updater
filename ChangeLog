@@ -1,18 +1,41 @@
 A complete changelog can be found at: https://github.com/Cashiuus/
 
+~~~~~~~~~~~~~~~~~~~
+Date    2014-12-29
+Version 1.4
+~~~~~~~~~~~~~~~~~~~
+    - Built helper file "default.py" and migrated user-configured settings
+    - Incorporated file/folder backup functionality with exclusions list
+    - Improved Google Chrome installer/updater
+
 
 ~~~~~~~~~~~~~~~~~~~
-Date	2014-03-20
+Date    2014-03-20
+Version 1.3
+~~~~~~~~~~~~~~~~~~~
+    - Changed git repository settings to nested mappings
+    - Added support for special git projects that require unique configurations
+
+
+~~~~~~~~~~~~~~~~~~~
+Date    2014-03-20
+Version 1.2
+~~~~~~~~~~~~~~~~~~~
+    - Added printout of current interpreter engine versions for reference
+
+
+~~~~~~~~~~~~~~~~~~~
+Date    2014-03-20
 Version 1.1
 ~~~~~~~~~~~~~~~~~~~
-	- Changed git clones list to a dictionary with each Git URL as value
-	- Added ability to setup new git clone when dict item doesn't exist
-	- Added option to add "Kali Bleeding Edge" repo to sources.list file
-	- Fixed "raw_input()" to work in both Python 2.x and 3.x
+    - Changed git clones list to a dictionary with each Git URL as value
+    - Added ability to setup new git clone when dict item doesn't exist
+    - Added option to add "Kali Bleeding Edge" repo to sources.list file
+    - Fixed "raw_input()" to work in both Python 2.x and 3.x
 
 
 ~~~~~~~~~~~~~~~~~~~
-Date	2014-03-20
+Date    2014-03-20
 Version 1.0
 ~~~~~~~~~~~~~~~~~~~
-	- Drafted initial application
+    - Drafted initial application

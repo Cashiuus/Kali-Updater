@@ -1,9 +1,14 @@
 #################
+# Local Project
+#################
+settings.py
+.gitattributes
+
+
+#################
 ## Eclipse
 #################
 
-settings.py
-settings.pyc
 *.pydevproject
 .project
 .metadata

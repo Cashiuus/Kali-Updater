@@ -3,22 +3,18 @@
 
 ### INSTALL
 
-- Clone Repository
-
-	```
-	git clone https://github.com/Cashiuus/Kali-Updater.git
-	```
-
-- Modify kaliUpdater.py script with desired configuration settings
-
+- Download
+```git clone https://github.com/Cashiuus/Kali-Updater.git kaliupdater
+cd kaliupdater
+cp default.py settings.py```
+- Modify "settings.py" with desired configuration settings
 - Run script (no arguments necessary at this time)
-	```python kaliUpdater.py```
+	```python kaliupdater.py```
 
 ### SUPPORT
 
 Tested on versions:
-- 2.7.6
-- 3.3.5
+- 2.7.9
 
 
 Follow me on Twitter: http://twitter.com/Cashiuus

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 #   Target Release:     Python 2.x
-#   Version:            1.3
+#   Version:            1.4
 #   Updated:            12/04/2014
 #   Created by:         cashiuus@gmail.com
 #
@@ -19,6 +19,7 @@ import sys
 import tarfile
 import time
 
+# TODO: There is a better way to import external variables
 try:
     # Customized version of the "default.py" file
     from settings import *
@@ -30,12 +31,7 @@ except:
 #    Set configurable settings  #
 # ----------------------------- #
 tdelay          = 2             # Delay script for network latency
-fixportmapper   = False         # Want to fix portmapper issue at boot?
-gitcolorize     = True          # This Enables git config option for 'color.ui'
-DO_BACKUPS      = True          # Backup user-specified files to an archive file
-DO_CHROME       = False         # Setup system for Google Chrome
-DO_GIT_REPOS    = True         # Update all known Git repositories with 'git pull'
-UPDATE_VEIL     = True          # Update the Veil framework using its own script
+
 GIT_BASE_DIR    = os.path.expanduser('~/git')
 
 #    List your existing GIT CLONES here
@@ -50,8 +46,11 @@ normal_git_tools = {
     'vfeed': 'https://github.com/toolswatch/vFeed',
 }
 special_git_tools = {
-    # These projects prefer to be placed in the "/opt" directory instead
-    # local_name, Dict value=(Tuple: git_url, installer_file)
+    # These projects have specific directory requirements
+    # Key=project_local_name
+    #   Value= (nested dict)
+    #       Key= install|url|script
+    #           Value= path|url|script_basename
     'smbexec':
     {
         'install': '/opt',
@@ -261,10 +260,11 @@ def setup_chrome():
             print("[-] Error trying to write to sources.list file. Installation aborted.")
             return
 
-    subprocess.call('apt-get -qq update', shell=True)
-    # TODO: Add in a check if it already exists first
-    subprocess.call('apt-get install -y google-chrome-stable', shell=True)
+    # Check if Chrome is already installed in its default location
+    if not os.path.isfile('/opt/google/chrome/google-chrome'):
+        subprocess.call('apt-get install -qq -y google-chrome-stable', shell=True)
 
+    # Check Chrome's config file and fix if it is broken for root use
     inputfile = open('/opt/google/chrome/google-chrome', 'r')
     contents = inputfile.readlines()
     inputfile.close()
@@ -281,7 +281,7 @@ def setup_chrome():
             shutil.move('/tmp/google-chrome', '/opt/google/chrome/google-chrome')
             run_helper_script('/opt/google/chrome/google-chrome')
         except Exception as e:
-            print("[-] Error moving Google chrome config file: {}".format(e))
+            print("[DEBUG] Error moving Google chrome config file: {}".format(e))
             pass
     else:
         print("[*] Google chrome config file appears to be fine, moving along")
@@ -297,8 +297,9 @@ def maint_tasks():
         subprocess.call("update-rc.d rpcbind enable", shell=True)
     return
 
-def ignore_file(f):
-    if f in dotfiles_ignore:
+
+def file_filter(f):
+    if f in EXCLUDE_FILES:
         return True
     else:
         return False
@@ -320,13 +321,22 @@ def backup_files(files, dest):
             return False
     z = tarfile.open(zname, mode='w:gz')
 
-    # Iter through dotfiles
+    # ------ dotfiles -----------
     for f in os.listdir(usr):
         fpath = os.path.join(usr, f)
         if f.startswith('.') and not os.path.isdir(fpath):
-            if f not in dotfiles_ignore:
+            if f not in EXCLUDE_FILES:
                 # Add to archive if it is not in the excluded files list
                 z.add(fpath)
+
+    # --------- backup files ----------
+    for fpath in BACKUP_FILES:
+        try:
+            # Add files unless they are listed in the exclude settings
+            z.add(fpath, filter=lambda x: None if x.name in EXCLUDE_FILES else x)
+        except Exception as e:
+            print("[DEBUG] Error adding backup files: {}".format(e))
+    # Close archive file
     z.close()
     return True
 
@@ -336,6 +346,9 @@ def backup_files(files, dest):
 # ------------------------
 def main():
     maint_tasks()
+    if DO_CHROME:
+        # Do chrome first, this way we can run update just once
+        setup_chrome()
     core_update()
     print("[+] Kali core update is complete. Listing utility bundle versions below:")
     get_versions()
@@ -343,16 +356,14 @@ def main():
         print("[+] Now updating Github cloned repositories...")
         do_git_apps(GIT_BASE_DIR, normal_git_tools)
         do_git_apps('/opt', special_git_tools)
-    # Check for Google Chrome
-    if DO_CHROME:
-        setup_chrome()
-    print("\n[+] Kali Updater is now complete. Goodbye!")
 
     if DO_BACKUPS:
         if backup_files(BACKUP_FILES, BACKUP_PATH) is True:
             print("[*] Backups successfully saved to: {}".format(BACKUP_PATH))
         else:
             print("[-] Backups failed to complete")
+
+    print("\n[+] Kali Updater is now complete. Goodbye!\n")
     return
 
 
