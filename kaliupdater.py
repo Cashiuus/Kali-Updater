@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 #
 #   Target Release:     Python 2.x
-#   Version:            1.4
-#   Updated:            12/04/2014
+#   Version:            1.5
+#   Updated:            01/04/2015
 #   Created by:         cashiuus@gmail.com
 #
 # Functionality:
@@ -30,9 +30,11 @@ except:
 # ----------------------------- #
 #    Set configurable settings  #
 # ----------------------------- #
-tdelay          = 2             # Delay script for network latency
-
-GIT_BASE_DIR    = os.path.expanduser('~/git')
+tdelay = 2                  # Delay script for network latency
+G  = '\033[32;1m'           # green
+R  = '\033[31m'             # red
+O  = '\033[33m'             # orange
+W  = '\033[0m'              # white (normal)
 
 #    List your existing GIT CLONES here
 #    TODO: Get existing git clones automatically; only known way is too slow
@@ -45,6 +47,7 @@ normal_git_tools = {
     'seclists': 'https://github.com/danielmiessler/SecLists',
     'vfeed': 'https://github.com/toolswatch/vFeed',
 }
+
 special_git_tools = {
     # These projects have specific directory requirements
     # Key=project_local_name
@@ -59,7 +62,7 @@ special_git_tools = {
     },
     'veil':
     {
-        'install': GIT_BASE_DIR,
+        'install': GIT_BASE_DIRS[0],
         'url': 'https://github.com/Veil-Framework/Veil',
         'script': 'update.sh',
     },
@@ -74,13 +77,21 @@ except NameError:
 
 
 # ----------------------------- #
-#              BEGIN            #
+#      UTILITY FUNCTIONS        #
 # ----------------------------- #
+def printer(msg, color=O):
+    if color == O and DO_DEBUG:
+        print("{}[DEBUG] {!s}{}".format(color, msg, W))
+    elif color != O:
+        print("{}{!s}{}".format(color, msg, W))
+    return
+
+
 # Check - Root user
 # TODO: If not root, run with sudo
 def root_check():
     if not (os.geteuid() == 0):
-        print("[-] Not currently root user. Please fix.")
+        printer("[-] Not currently root user. Please fix.", color=R)
         exit(1)
     return
 
@@ -91,16 +102,18 @@ def make_dirs(path):
     return
 
 
+# ----------------------------- #
+#              BEGIN            #
+# ----------------------------- #
 #    Update Kali core distro using Aptitude
-#
 def core_update():
-    print("[+] Now updating Kali and Packages...")
+    print("[*] Now updating Kali and Packages...")
     try:
         subprocess.call("apt-get -qq update && apt-get -qq -y dist-upgrade && apt-get -y autoclean", shell=True)
         subprocess.call("updatedb", shell=False)
-        print("[+] Successfully updated Kali...moving along...")
+        print("[*] Successfully updated Kali...moving along...")
     except:
-        print("[-] Error attempting to update Kali. Please try again later.")
+        printer("[-] Error attempting to update Kali. Please try again later.", color=R)
 
     time.sleep(tdelay)
     return
@@ -122,94 +135,130 @@ def bleeding_repo_check():
     repofile.close()
 
     if check == 0:
-        addrepo = input("\n[*] Would you like to add the Kali Bleeding Edge Repo? [y,N]: ")
+        addrepo = input("\n[+] Would you like to add the Kali Bleeding Edge Repo? [y,N]: ")
         if (addrepo == 'y'):
             repofile = '/etc/apt/sources.list'
     return
 
 
-# TODO: Add code to compare current versions with those found present
+# TODO: Add code to compare current versions with those found to indicate update available
 # Get installed version of supporting programming applications with dpkg
 def get_versions():
     pversion = str(sys.version_info[0]) + '.' + str(sys.version_info[1]) + '.' + str(sys.version_info[2])
-    print("\t[*] Python Version:\t{}".format(pversion))
+    print("\t{}[*] Python Version:{}\t{}".format(G, W, pversion))
 
     try:
         out_bytes = subprocess.check_output(['ruby', '-v'])
         out_text = out_bytes.decode('UTF-8')
         rversion = out_text.split(' ')[1]
-        print("\t[*] Ruby Version:\t{}".format(rversion))
+        print("\t{}[*] Ruby Version:{}\t{!s}".format(G, W, rversion))
     except:
-        print("\t[*] Ruby Version:\t Not Installed")
+        printer("\t[*] Ruby Version:\t Not Installed", color=R)
 
     try:
         out_bytes = subprocess.check_output(['gem', '-v'])
         gversion = out_bytes.decode('UTF-8')
         gversion = gversion.rstrip()
-        print("\t[*] Gem Version:\t{}".format(gversion))
+        print("\t{}[*] Gem Version:{}\t{!s}".format(G, W, gversion))
     except:
-        print("\t[*] Gem Version:\t Not Installed")
+        printer("\t[*] Gem Version:\t Not Installed", color=R)
 
     try:
         out_bytes = subprocess.check_output(['bundle', '-v'])
         out_text = out_bytes.decode('UTF-8')
         bversion = out_text.split(' ')[2]
-        print("\t[*] Bundle Version:\t", bversion, sep='')
+        print("\t{}[*] Bundle Version:{}\t{!s}".format(G, W, bversion))
     except:
-        print("\t[*] Bundle Version:\t Not Installed", sep='')
+        printer("\t[-] Bundle Version:\t Not Installed", color=R)
+    return
+
+
+def git_new(app_path, install_path, url, app_script=None):
+    # App does not exist, we can set it up right now
+    print("[-] This path does not exist: {}".format(app_path))
+    answer = input("Setup this Git Clone now? [y,N]: ")
+    if(answer == 'y'):
+        make_dirs(app_path)
+        # Change dir to the install_path, not app_path, so that clone creates dir in the right place
+        os.chdir(install_path)
+
+        # Clone the app into a new folder called $app
+        subprocess.call('git clone ' + str(url) + '.git ' + str(app), shell=True)
+
+        # Now process all special git apps, which require additional installation
+        if app_script:
+            run_helper_script(os.path.join(app_path, app_script))
     return
 
 
 # TODO: Catch exceptions when Git fails update because local file was modified
-def do_git_apps(install_path, tools_dict):
+def do_git_apps(path_list, tools_dict, special_tools):
     """
-    Usage: do_git_apps(base_install_dir, dict_appname_github_url)
+    Usage: do_git_apps(list(base_install_dir), dict(appname_github_url))
     Will process a dictionary of tools
     If dict value is a dict, it will process post-clone installation
     """
-    for app, details in tools_dict.iteritems():
-        app_script = False  # Initialize toggle for function to work
-        print("\n[*] Checking Repository: {}".format(app))
+    fnull = open(os.devnull, 'w')
 
-        # What type of mapping are we dealing with
-        # Check if the dict value is a dict, indicating special tools
-        if type(tools_dict[app]) is dict:
-            print("[DEBUG] Special Tools Mapping: {}".format(app))
-            install_path = tools_dict[app]['install']
-            url = tools_dict[app]['url']
-            app_script = tools_dict[app]['script']
-        else:
-            # Normal git, so just standardize the variable being used
-            url = details
-        # This will make app_path correct for either type of mapping
-        app_path = os.path.join(install_path, app)
-
-        print("[DEBUG] Application Path: {}".format(app_path))
-
-        # If the app already exists, just update it
-        if os.path.isdir(app_path):
-            os.chdir(app_path)
+    def git_update(git_path):
+        if os.path.isdir(git_path):
+            os.chdir(git_path)
             try:
                 subprocess.call('git pull', shell=True)
                 time.sleep(tdelay)
             except:
-                print("[-] Error updating Git Repo: {}".format(app))
+                printer("[-] Error updating Git Repo: {}".format(git_path))
                 # TODO: Maybe in future ask if we want to reset this broken repo, not yet
+            return True
         else:
-            # App does not exist, we can set it up right now
-            print("[-] This path does not exist: {}".format(app_path))
-            answer = input("Setup this Git Clone now? [y,N]: ")
-            if(answer == 'y'):
-                make_dirs(app_path)
-                os.chdir(install_path)
+            return False
 
-                # Clone the app into a new folder called $app
-                subprocess.call('git clone ' + str(url) + '.git ' + str(app), shell=True)
+    # Pre-processing of existing GIT repositories
+    my_apps = []
+    for item in path_list:
+        # if we have a folder that also has a .git folder inside it, we want to update it
+        # list - full paths to app
+        # TODO: Maybe a better approach is to find them and ask to update the repo list with existing ones
+        my_apps.extend([os.path.join(item, x) for x in os.listdir(item) if os.path.isdir(os.path.join(item, x, '.git'))])
 
-                # Now process all special git apps, which require additional installation
-                if app_script:
-                    run_helper_script(os.path.join(app_path, app_script))
-    return
+    for app, details in tools_dict.iteritems():
+        printer("\n[*] Checking Repository: {}".format(app), color=G)
+
+        # Normal git, so just standardize the variable being used
+        url = details
+        # New repo clones are always installed in first directory path
+        install_path = path_list[0]
+        app_path = os.path.join(install_path, app)
+        print("[*] Application Path: {}".format(app_path))
+
+        # Avoid redundancy, remove apps from list if we're checking it already
+        if app_path in my_apps:
+            my_apps.remove(app_path)
+            
+        if not git_update(app_path):
+            git_new(app_path, install_path, url, app_script=app_script)
+
+    for app, details in special_tools.iteritems():
+        app_script = False      # Initialize toggle for function to work
+        # What type of mapping are we dealing with
+        # Check if the dict value is a dict, indicating special tools
+        printer("Special Tools Mapping: {}".format(app))
+        install_path = special_tools[app]['install']
+        url = special_tools[app]['url']
+        app_script = special_tools[app]['script']
+        app_path = os.path.join(install_path, app)
+        print("[*] Application Path: {}".format(app_path))
+        
+        # Avoid redundancy, remove apps from list if we're checking it already
+        if app_path in my_apps:
+            my_apps.remove(app_path)
+            
+        if not git_update(app_path):
+            git_new(app_path, install_path, url, app_script=app_script)
+    # Now update my existing git repoos
+    for i in my_apps:
+        printer("\n[*] Updating Repository: {}".format(i.split('/')[-1]), color=G)
+        git_update(i)
 
 
 def run_helper_script(script_path):
@@ -219,13 +268,13 @@ def run_helper_script(script_path):
     However, this also introduces a security concern if said script is malicious
     """
     if not os.path.isfile(script_path):
-        print("[-] Script path is invalid, skipping script execution")
+        printer("[-] Script path is invalid, skipping script execution", color=R)
         return False
     if not os.access(script_path, os.X_OK):
         try:
             os.chmod(script_path, 0o755)
         except:
-            print("[-] Unable to modify permissions on script file, aborting")
+            printer("[-] Unable to modify permissions on script file, aborting", color=R)
             return False
     os.system('clear')
     subprocess.call(script_path, shell=True)
@@ -257,7 +306,7 @@ def setup_chrome():
             f.write(chrome_repo)
             f.close()
         except OSError:
-            print("[-] Error trying to write to sources.list file. Installation aborted.")
+            printer("[-] Error trying to write to sources.list file. Installation aborted.", color=R)
             return
 
     # Check if Chrome is already installed in its default location
@@ -281,7 +330,7 @@ def setup_chrome():
             shutil.move('/tmp/google-chrome', '/opt/google/chrome/google-chrome')
             run_helper_script('/opt/google/chrome/google-chrome')
         except Exception as e:
-            print("[DEBUG] Error moving Google chrome config file: {}".format(e))
+            printer("Error moving Google chrome config file: {}".format(e))
             pass
     else:
         print("[*] Google chrome config file appears to be fine, moving along")
@@ -310,7 +359,7 @@ def backup_files(files, dest):
         try:
             os.makedirs(BACKUP_PATH, mode=0o711)
         except:
-            print("[-] Error creating backup folders")
+            printer("[-] Error creating backup folders", color=R)
             return False
 
     # Create the compressed archive the files will be sent to
@@ -335,7 +384,7 @@ def backup_files(files, dest):
             # Add files unless they are listed in the exclude settings
             z.add(fpath, filter=lambda x: None if x.name in EXCLUDE_FILES else x)
         except Exception as e:
-            print("[DEBUG] Error adding backup files: {}".format(e))
+            printer("Error adding backup file: {}".format(e), color=R)
     # Close archive file
     z.close()
     return True
@@ -350,20 +399,19 @@ def main():
         # Do chrome first, this way we can run update just once
         setup_chrome()
     core_update()
-    print("[+] Kali core update is complete. Listing utility bundle versions below:")
+    print("[*] Kali core update is complete. Listing utility bundle versions below:")
     get_versions()
     if DO_GIT_REPOS:
-        print("[+] Now updating Github cloned repositories...")
-        do_git_apps(GIT_BASE_DIR, normal_git_tools)
-        do_git_apps('/opt', special_git_tools)
+        print("[*] Now updating Github cloned repositories...")
+        do_git_apps(GIT_BASE_DIRS, normal_git_tools, special_git_tools)
 
     if DO_BACKUPS:
         if backup_files(BACKUP_FILES, BACKUP_PATH) is True:
             print("[*] Backups successfully saved to: {}".format(BACKUP_PATH))
         else:
-            print("[-] Backups failed to complete")
+            printer("[-] Backups failed to complete", color=R)
 
-    print("\n[+] Kali Updater is now complete. Goodbye!\n")
+    printer("\n[*] Kali Updater is now complete. Goodbye!\n", color=G)
     return
 
 

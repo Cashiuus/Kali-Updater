@@ -5,7 +5,8 @@
 # If you make changes to this file, rename it to "settings.py"
 
 import os
-
+# DEBUGGING
+DO_DEBUG = True
 BACKUP_PATH = os.path.join(os.path.expanduser('~'), 'Backups')
 usr = os.path.expanduser('~')
 
@@ -22,6 +23,16 @@ DO_GIT_REPOS    = False
 # Update the Veil Framework using its own script
 UPDATE_VEIL     = True
 
+# List here folders that you are using for all git repos
+# YOUR PRIMARY GIT DIRECTORY SHOULD BE FIRST. This is where
+# your git_tools repositories will be cloned if they don't exist
+GIT_BASE_DIRS = [
+    os.path.expanduser('~/git'),
+]
+
+# Dotfiles are backed up, so these are exclusions
+# This list can also include any files that may exist in
+# folders you specify in the BACKUP_FILES section you wish to skip
 EXCLUDE_FILES = [
     '.ICEauthority',
     '.pulse-cookie',
