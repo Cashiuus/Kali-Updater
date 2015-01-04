@@ -213,6 +213,16 @@ def do_git_apps(path_list, tools_dict, special_tools):
         else:
             return False
 
+    def git_owner(ap):
+        # Get the owner for existing Git repos
+        # the .git/config file has a line that startswith url that contains remote url
+        with open(os.path.join(ap, '.git', 'config'), 'r') as fgit:
+            for line in fgit.readlines():
+                if line.strip().startswith('url'):
+                    owner_string = line.strip().split(' ')[2]
+        return owner_string
+
+
     # Pre-processing of existing GIT repositories
     my_apps = []
     for item in path_list:
@@ -230,7 +240,7 @@ def do_git_apps(path_list, tools_dict, special_tools):
         install_path = path_list[0]
         app_path = os.path.join(install_path, app)
         print("[*] Application Path: {}".format(app_path))
-
+        printer("[*] Git Owner: {}".format(git_owner(app_path)), color=G)
         # Avoid redundancy, remove apps from list if we're checking it already
         if app_path in my_apps:
             my_apps.remove(app_path)
@@ -239,6 +249,7 @@ def do_git_apps(path_list, tools_dict, special_tools):
             git_new(app_path, install_path, url, app_script=app_script)
 
     for app, details in special_tools.iteritems():
+        printer("\n[*] Checking Repository: {}".format(app), color=G)
         app_script = False      # Initialize toggle for function to work
         # What type of mapping are we dealing with
         # Check if the dict value is a dict, indicating special tools
