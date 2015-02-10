@@ -41,9 +41,10 @@ W  = '\033[0m'              # white (normal)
 #           If I can find them in background during core update, would be ideal
 normal_git_tools = {
     'artillery': 'https://github.com/trustedsec/artillery',
-    'creds': 'https://github.com/DanMcInerney/creds.py',
+    'creds.py': 'https://github.com/DanMcInerney/creds.py',
     'lair': 'https://github.com/fishnetsecurity/Lair',
     'powersploit': 'https://github.com/mattifestation/PowerSploit',
+    'Responder': 'https://github.com/SpiderLabs/Responder',
     'seclists': 'https://github.com/danielmiessler/SecLists',
     'vfeed': 'https://github.com/toolswatch/vFeed',
 }
@@ -60,12 +61,18 @@ special_git_tools = {
         'url': 'https://github.com/pentestgeek/smbexec',
         'script': 'install.sh',
     },
-    'veil':
+    'Veil':
     {
         'install': GIT_BASE_DIRS[0],
         'url': 'https://github.com/Veil-Framework/Veil',
         'script': 'update.sh',
     },
+    'phishing-frenzy':
+    {
+        'install': '/var/www',
+        'url': 'https://github.com/pentestgeek/phishing-frenzy',
+        'script': None,
+    }
 }
 
 # Setup Python 2 & 3 'raw_input' compatibility
@@ -173,7 +180,7 @@ def get_versions():
     return
 
 
-def git_new(app_path, install_path, url, app_script=None):
+def git_new(app, app_path, install_path, url, app_script=None):
     # App does not exist, we can set it up right now
     print("[-] This path does not exist: {}".format(app_path))
     answer = input("Setup this Git Clone now? [y,N]: ")
@@ -200,9 +207,11 @@ def do_git_apps(path_list, tools_dict, special_tools):
     """
     fnull = open(os.devnull, 'w')
 
+
     def git_update(git_path):
-        if os.path.isdir(git_path):
+        if os.path.isdir(os.path.join(git_path, '.git')):
             os.chdir(git_path)
+            printer("[*] Git Owner: {}".format(git_owner(git_path)), color=G)
             try:
                 subprocess.call('git pull', shell=True)
                 time.sleep(tdelay)
@@ -240,13 +249,12 @@ def do_git_apps(path_list, tools_dict, special_tools):
         install_path = path_list[0]
         app_path = os.path.join(install_path, app)
         print("[*] Application Path: {}".format(app_path))
-        printer("[*] Git Owner: {}".format(git_owner(app_path)), color=G)
         # Avoid redundancy, remove apps from list if we're checking it already
         if app_path in my_apps:
             my_apps.remove(app_path)
             
         if not git_update(app_path):
-            git_new(app_path, install_path, url, app_script=app_script)
+            git_new(app, app_path, install_path, url)
 
     for app, details in special_tools.iteritems():
         printer("\n[*] Checking Repository: {}".format(app), color=G)
@@ -265,7 +273,7 @@ def do_git_apps(path_list, tools_dict, special_tools):
             my_apps.remove(app_path)
             
         if not git_update(app_path):
-            git_new(app_path, install_path, url, app_script=app_script)
+            git_new(app, app_path, install_path, url, app_script=app_script)
     # Now update my existing git repoos
     for i in my_apps:
         printer("\n[*] Updating Repository: {}".format(i.split('/')[-1]), color=G)
@@ -339,7 +347,7 @@ def setup_chrome():
         # Move the new file to overwrite the old
         try:
             shutil.move('/tmp/google-chrome', '/opt/google/chrome/google-chrome')
-            run_helper_script('/opt/google/chrome/google-chrome')
+            #run_helper_script('/opt/google/chrome/google-chrome')
         except Exception as e:
             printer("Error moving Google chrome config file: {}".format(e))
             pass
