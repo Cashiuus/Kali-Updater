@@ -418,8 +418,8 @@ def main():
         # Do chrome first, this way we can run update just once
         setup_chrome()
     core_update()
-    print("[*] Kali core update is complete. Listing utility bundle versions below:")
-    get_versions()
+    print("[*] Kali core update is complete.")
+
     if DO_GIT_REPOS:
         print("[*] Now updating Github cloned repositories...")
         do_git_apps(GIT_BASE_DIRS, normal_git_tools, special_git_tools)
@@ -430,7 +430,8 @@ def main():
         else:
             printer("[-] Backups failed to complete", color=R)
 
-    printer("\n[*] Kali Updater is now complete. Goodbye!\n", color=G)
+    printer("\n[*] Kali Updater is now complete. Listing utility bundle versions below:!\n", color=G)
+    get_versions()
     return
 
 
