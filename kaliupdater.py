@@ -31,10 +31,10 @@ except:
 #    Set configurable settings  #
 # ----------------------------- #
 tdelay = 2                  # Delay script for network latency
-G  = '\033[32;1m'           # green
-R  = '\033[31m'             # red
-O  = '\033[33m'             # orange
-W  = '\033[0m'              # white (normal)
+G  = '\033[32;1m'           # green text coloring
+R  = '\033[31m'             # red text coloring
+O  = '\033[33m'             # orange text coloring
+W  = '\033[0m'              # white (normal) text coloring
 
 #    List your existing GIT CLONES here
 #    TODO: Get existing git clones automatically; only known way is too slow
@@ -116,7 +116,7 @@ def make_dirs(path):
 def core_update():
     print("[*] Now updating Kali and Packages...")
     try:
-        subprocess.call("apt-get -qq update && apt-get -qq -y dist-upgrade && apt-get -y autoclean", shell=True)
+        subprocess.call("apt-get -qq update && apt-get -y dist-upgrade && apt-get -y autoclean", shell=True)
         subprocess.call("updatedb", shell=False)
         print("[*] Successfully updated Kali...moving along...")
     except:
@@ -430,8 +430,13 @@ def main():
         else:
             printer("[-] Backups failed to complete", color=R)
 
+    # Update RVM Itself
+    os.system('rvm get stable')
+    
+    os.system('updatedb')
     printer("\n[*] Kali Updater is now complete. Listing utility bundle versions below:!\n", color=G)
     get_versions()
+
     return
 
 
