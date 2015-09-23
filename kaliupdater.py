@@ -1,25 +1,27 @@
 #!/usr/bin/env python
 #
 #   Target Release:     Python 2.x
-#   Version:            1.5
-#   Updated:            01/04/2015
+#   Version:            0.5
+#   Updated:            09/21/2015
 #   Created by:         cashiuus@gmail.com
 #
 # Functionality:
-#   1. Add Bleeding Edge Repository
-#   2. Update & Upgrade all Kali apps using 'apt-get'
-#   3. Update defined list of Git Clones; if nonexistant you can add them
+#   1. Update & Upgrade all Kali apps using 'apt-get'
+#   2. Update defined list of Git Clones; if nonexistant you can add them
+#   3. Create a backup archive of specified files--See default.py
 # ====================================================================
 
 from __future__ import print_function
+import fnmatch
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tarfile
 import time
 
-# TODO: There is a better way to import external variables
+# TODO: There is (maybe?) a better way to import external variables
 try:
     # Customized version of the "default.py" file
     from settings import *
@@ -27,56 +29,7 @@ except:
     # If "settings.py" doesn't exist, import default instead
     from default import *
 
-# ----------------------------- #
-#    Set configurable settings  #
-# ----------------------------- #
-tdelay = 2                  # Delay script for network latency
-G  = '\033[32;1m'           # green text coloring
-R  = '\033[31m'             # red text coloring
-O  = '\033[33m'             # orange text coloring
-W  = '\033[0m'              # white (normal) text coloring
-
-#    List your existing GIT CLONES here
-#    TODO: Get existing git clones automatically; only known way is too slow
-#           If I can find them in background during core update, would be ideal
-normal_git_tools = {
-    'artillery': 'https://github.com/trustedsec/artillery',
-    'creds.py': 'https://github.com/DanMcInerney/creds.py',
-    'lair': 'https://github.com/fishnetsecurity/Lair',
-    'powersploit': 'https://github.com/mattifestation/PowerSploit',
-    'Responder': 'https://github.com/SpiderLabs/Responder',
-    'seclists': 'https://github.com/danielmiessler/SecLists',
-    'vfeed': 'https://github.com/toolswatch/vFeed',
-}
-
-special_git_tools = {
-    # These projects have specific directory requirements
-    # Key=project_local_name
-    #   Value= (nested dict)
-    #       Key= install|url|script
-    #           Value= path|url|script_basename
-    'smbexec':
-    {
-        'install': '/opt',
-        'url': 'https://github.com/pentestgeek/smbexec',
-        'script': 'install.sh',
-    },
-    'Veil':
-    {
-        'install': GIT_BASE_DIRS[0],
-        'url': 'https://github.com/Veil-Framework/Veil',
-        'script': 'update.sh',
-    },
-    'phishing-frenzy':
-    {
-        'install': '/var/www',
-        'url': 'https://github.com/pentestgeek/phishing-frenzy',
-        'script': None,
-    }
-}
-
 # Setup Python 2 & 3 'raw_input' compatibility
-#
 try:
     input = raw_input
 except NameError:
@@ -86,6 +39,10 @@ except NameError:
 # ----------------------------- #
 #      UTILITY FUNCTIONS        #
 # ----------------------------- #
+G  = '\033[32;1m'           # green text coloring
+R  = '\033[31m'             # red text coloring
+O  = '\033[33m'             # orange text coloring
+W  = '\033[0m'              # white (normal) text coloring
 def printer(msg, color=O):
     if color == O and DO_DEBUG:
         print("{}[DEBUG] {!s}{}".format(color, msg, W))
@@ -108,49 +65,256 @@ def make_dirs(path):
         os.makedirs(path)
     return
 
+def locate(pattern, root='/'):
+    '''
+    Local all Git repositories in the filesystem,
+    creating a list in order to update them all.
+    '''
+    for path, dirs, files in os.walk(os.path.abspath(root)):
+        for filename in fnmatch.filter(dirs, pattern):
+            yield os.path.join(path, filename)
+
+
+class AlarmException(Exception):
+    pass
+
+def alarm_handler(signum, frame):
+    raise AlarmException
+
+def input_with_timeout(prompt='', choice=None, timeout=20):
+    signal.signal(signal.SIGALRM, alarm_handler)
+    signal.alarm(timeout)
+    try:
+        text = raw_input(prompt)
+        signal.alarm(0)
+        return text
+    except AlarmException:
+        return choice
+    signal.signal(signal.SIGALRM, signal.SIG_IGN)
+    return ''
+
 
 # ----------------------------- #
 #              BEGIN            #
 # ----------------------------- #
+
+def maint_tasks():
+    # Git color config setting
+    subprocess.check_output(['git', 'config', '--global', 'color.ui', 'auto'])
+    if fixportmapper is True:
+        subprocess.call("update-rc.d rpcbind defaults", shell=True)
+        time.sleep(tdelay)
+        subprocess.call("update-rc.d rpcbind enable", shell=True)
+    return
+
 #    Update Kali core distro using Aptitude
 def core_update():
     print("[*] Now updating Kali and Packages...")
     try:
         subprocess.call("apt-get -qq update && apt-get -y dist-upgrade && apt-get -y autoclean", shell=True)
-        subprocess.call("updatedb", shell=False)
         print("[*] Successfully updated Kali...moving along...")
     except:
         printer("[-] Error attempting to update Kali. Please try again later.", color=R)
-
     time.sleep(tdelay)
     return
 
 
 # -----------------------------
-# Checking APT Repository List file
-#
-def bleeding_repo_check():
-    bleeding = 'deb http://repo.kali.org/kali kali-bleeding-edge main'
-    repofile = open('/etc/apt/sources.list', 'r')
-
-    for line in repofile.readlines():
-        if bleeding == line.rstrip():
-            check = 1
-            break
+# APT Repository Changes
+# -------------------------------
+def apt_repo_change(repo_string, sources_file=None):
+    ''' Accept a repo string and/or file name to determine
+    if the desired repository is already present for apt-get.
+    If it is not, it will create the string or file.
+    
+    Usage: apt_repo_change(<string>, <filename>)
+    '''
+    # If a sources file is known, check existance first
+    if (sources_file) and (os.path.isfile(sources_file)):
+        found = True
+    else:
+        with open('/etc/apt/sources.list', 'r') as repofile:
+            for line in repofile.readlines():
+                if line.startswith("#"):
+                    continue
+                if repo_string == line.strip():
+                    found = True
+    if not found:
+        if sources_file:
+            # Create the intended sources file for the future
+            with open(sources_file, 'w'):
+                f.write(repo_string)
         else:
-            check = 0
-    repofile.close()
+            try:
+                with open('/etc/apt/sources.list', 'a') as f:
+                    f.write(repo_string)
+            except OSError:
+                printer("[-] Error trying to write to sources.list file. Installation aborted.", color=R)
+    return
 
-    if check == 0:
-        addrepo = input("\n[+] Would you like to add the Kali Bleeding Edge Repo? [y,N]: ")
-        if (addrepo == 'y'):
-            repofile = '/etc/apt/sources.list'
+
+def git_new(app, app_path, install_path, url, app_script=None, cmd=None, upstream=None):
+    '''
+    Clone Git Repositories not already present on system.
+    Also, runs any specific installer file required by the project
+    '''
+    printer("[*] Installing New Repo: {}".format(app), color=G)
+
+    make_dirs(app_path)
+    # Change dir to the install_path, not app_path, so that clone creates dir in the right place
+    os.chdir(install_path)
+
+    # Clone the app into a new folder called $app
+    subprocess.call('git clone ' + str(url) + '.git ' + str(app), shell=True)
+    time.sleep(tdelay)
+    # Now process all special git apps, which require additional installation
+    if app_script:
+        run_helper_script(os.path.join(app_path, app_script))
+    if cmd and not cmd.startswith('rm'):
+        subprocess.call(cmd, shell=True)
+    return
+
+
+def git_owner(ap):
+    ''' Get the owner for existing cloned Git repos
+    the .git/config file has a line that startswith url that contains remote url
+    Unfortunately, there doesn't appear to be any way to get master owner for forks :(
+    '''
+    with open(os.path.join(ap, '.git', 'config'), 'r') as fgit:
+        #for line in fgit.readlines():
+        #    if line.strip().startswith('url'):
+        #        owner_string = line.strip().split(' ')[2]
+        owner_string = [x.strip().split(' ')[2] for x in fgit.readlines() if x.strip().startswith('url')]
+    return owner_string[0]
+
+
+def git_update(git_path):
+    ''' 
+    Update existing Git Cloned Repositories
+    '''
+    if os.path.isdir(os.path.join(git_path, '.git')):
+        printer("[*] Updating Git Repo: {}".format(os.path.split(git_path)[1]), color=G)
+        printer("[*] Git Owner: {}".format(git_owner(git_path)), color=G)
+        try:
+            os.chdir(git_path)
+            subprocess.call('git pull', shell=True)
+            time.sleep(tdelay)
+        except:
+            printer("[-] Error updating Git Repo: {}".format(git_path), color=R)
+    return
+
+
+def do_git_apps(path_list, git_tools):
+    """
+    Will process a dictionary of tools
+    If dict value is a dict, it will process post-clone installation
+    
+    Usage: do_git_apps(list(base_install_dir), dict(git_tools))
+    """
+    
+    fnull = open(os.devnull, 'w')
+        
+    # Find all Repositories on the system and update them all?
+    printer("[*] Searching Filesystem for all Git Clones...", color=W)
+    my_apps = []
+    
+    ## -- Update Existing Repos
+    for i in locate('.git'):
+        # For each found Git Repo, add to my_apps list and call update
+        dir_repo, tail = os.path.split(i)
+        if '/.cache/' not in dir_repo:
+            my_apps.append(dir_repo)
+            git_update(dir_repo)
+    for i in my_apps:
+        printer("<Existing List> : {}".format(i), color=O)
+
+    # -- Process Git Projects
+    for app, details in git_tools.iteritems():
+        # Get all possible key/values, behavior based on which exist
+        url = details.get('url')
+        app_script = details.get('script')
+        upstream = details.get('upstream')
+        install_path = details.get('install')
+        command = details.get('command')
+        if not install_path:
+            # New repo clones are always installed in first directory path
+            install_path = path_list[0]
+        
+        app_path = os.path.join(install_path, app)
+        printer("Application Path: {}".format(app_path), color=O)
+        # Avoid redundancy, remove apps from list if we're checking it already
+        if app_path in my_apps:
+            printer("App is already in existing apps list!", color=O)
+            continue
+        printer("\n[*] Installing Repository: {}".format(app), color=G)
+        # If new, install it
+        git_new(app, app_path, install_path, url, app_script=app_script, 
+            cmd=command, upstream=upstream)
+    return
+
+
+
+def run_helper_script(script_path):
+    '''
+    This function aids installs and updates by running developers'
+    locally crafted scripts. No sense in redoing their hard efforts.
+    However, this also introduces a security concern if said script is malicious...
+    '''
+    if not os.path.isfile(script_path):
+        printer("[-] Script path is invalid, skipping script execution", color=R)
+        return False
+    if not os.access(script_path, os.X_OK):
+        try:
+            os.chmod(script_path, 0o755)
+        except:
+            printer("[-] Unable to modify permissions on script file, aborting", color=R)
+            return False
+    os.system('clear')
+    subprocess.call(script_path, shell=True)
+    return True
+
+
+def setup_chrome():
+    """
+    Google Chrome has an odd setup path within Kali and hates running as root
+    """
+    chrome_repo = 'deb http://dl.google.com/linux/chrome/deb/ stable main'
+    apt_repo_change(chrome_repo, '/etc/apt/sources.list.d/google-chrome.list')
+
+    # Check if Chrome is already installed in its default location
+    if not os.path.isfile('/opt/google/chrome/google-chrome'):
+        subprocess.call('apt-get install -qq -y google-chrome-stable', shell=True)
+
+    # Check Chrome's config file and fix if it is broken for root use
+    with open('/opt/google/chrome/google-chrome', 'r') as inputfile:
+        contents = inputfile.readlines()
+
+    if contents[-1].strip() == '"$@"':
+        # The default config file is back and we must replace it
+        outputfile = open('/tmp/google-chrome', 'w')
+        for line in contents[:-2]:
+            outputfile.write(line)
+        chromefix = 'exec -a "$0" "$HERE/chrome" "$@" --user-data-dir "$PROFILE_DIRECTORY_FLAG"\n'
+        outputfile.write(chromefix)
+        outputfile.close()
+        # Move the new file to overwrite the old
+        try:
+            shutil.move('/tmp/google-chrome', '/opt/google/chrome/google-chrome')
+            #run_helper_script('/opt/google/chrome/google-chrome')
+        except Exception as e:
+            printer("Error moving Google chrome config file: {}".format(e))
+            pass
+    else:
+        print("[*] Google chrome config file appears to be fine, moving along")
     return
 
 
 # TODO: Add code to compare current versions with those found to indicate update available
 # Get installed version of supporting programming applications with dpkg
-def get_versions():
+def get_specs():
+    
+    print("\t{}[*] Active Shell:{}\t{!s}".format(G, W, os.environ['SHELL'])
+    
     pversion = str(sys.version_info[0]) + '.' + str(sys.version_info[1]) + '.' + str(sys.version_info[2])
     print("\t{}[*] Python Version:{}\t{}".format(G, W, pversion))
 
@@ -180,192 +344,6 @@ def get_versions():
     return
 
 
-def git_new(app, app_path, install_path, url, app_script=None):
-    # App does not exist, we can set it up right now
-    print("[-] This path does not exist: {}".format(app_path))
-    answer = input("Setup this Git Clone now? [y,N]: ")
-    if(answer == 'y'):
-        make_dirs(app_path)
-        # Change dir to the install_path, not app_path, so that clone creates dir in the right place
-        os.chdir(install_path)
-
-        # Clone the app into a new folder called $app
-        subprocess.call('git clone ' + str(url) + '.git ' + str(app), shell=True)
-
-        # Now process all special git apps, which require additional installation
-        if app_script:
-            run_helper_script(os.path.join(app_path, app_script))
-    return
-
-
-# TODO: Catch exceptions when Git fails update because local file was modified
-def do_git_apps(path_list, tools_dict, special_tools):
-    """
-    Usage: do_git_apps(list(base_install_dir), dict(appname_github_url))
-    Will process a dictionary of tools
-    If dict value is a dict, it will process post-clone installation
-    """
-    fnull = open(os.devnull, 'w')
-
-
-    def git_update(git_path):
-        if os.path.isdir(os.path.join(git_path, '.git')):
-            os.chdir(git_path)
-            printer("[*] Git Owner: {}".format(git_owner(git_path)), color=G)
-            try:
-                subprocess.call('git pull', shell=True)
-                time.sleep(tdelay)
-            except:
-                printer("[-] Error updating Git Repo: {}".format(git_path))
-                # TODO: Maybe in future ask if we want to reset this broken repo, not yet
-            return True
-        else:
-            return False
-
-    def git_owner(ap):
-        # Get the owner for existing Git repos
-        # the .git/config file has a line that startswith url that contains remote url
-        with open(os.path.join(ap, '.git', 'config'), 'r') as fgit:
-            for line in fgit.readlines():
-                if line.strip().startswith('url'):
-                    owner_string = line.strip().split(' ')[2]
-        return owner_string
-
-
-    # Pre-processing of existing GIT repositories
-    my_apps = []
-    for item in path_list:
-        # if we have a folder that also has a .git folder inside it, we want to update it
-        # list - full paths to app
-        # TODO: Maybe a better approach is to find them and ask to update the repo list with existing ones
-        my_apps.extend([os.path.join(item, x) for x in os.listdir(item) if os.path.isdir(os.path.join(item, x, '.git'))])
-
-    for app, details in tools_dict.iteritems():
-        printer("\n[*] Checking Repository: {}".format(app), color=G)
-
-        # Normal git, so just standardize the variable being used
-        url = details
-        # New repo clones are always installed in first directory path
-        install_path = path_list[0]
-        app_path = os.path.join(install_path, app)
-        print("[*] Application Path: {}".format(app_path))
-        # Avoid redundancy, remove apps from list if we're checking it already
-        if app_path in my_apps:
-            my_apps.remove(app_path)
-            
-        if not git_update(app_path):
-            git_new(app, app_path, install_path, url)
-
-    for app, details in special_tools.iteritems():
-        printer("\n[*] Checking Repository: {}".format(app), color=G)
-        app_script = False      # Initialize toggle for function to work
-        # What type of mapping are we dealing with
-        # Check if the dict value is a dict, indicating special tools
-        printer("Special Tools Mapping: {}".format(app))
-        install_path = special_tools[app]['install']
-        url = special_tools[app]['url']
-        app_script = special_tools[app]['script']
-        app_path = os.path.join(install_path, app)
-        print("[*] Application Path: {}".format(app_path))
-        
-        # Avoid redundancy, remove apps from list if we're checking it already
-        if app_path in my_apps:
-            my_apps.remove(app_path)
-            
-        if not git_update(app_path):
-            git_new(app, app_path, install_path, url, app_script=app_script)
-    # Now update my existing git repoos
-    for i in my_apps:
-        printer("\n[*] Updating Repository: {}".format(i.split('/')[-1]), color=G)
-        git_update(i)
-
-
-def run_helper_script(script_path):
-    """
-    This function aids installs and updates by running developers'
-    locally crafted scripts. No sense in redoing their hard efforts.
-    However, this also introduces a security concern if said script is malicious
-    """
-    if not os.path.isfile(script_path):
-        printer("[-] Script path is invalid, skipping script execution", color=R)
-        return False
-    if not os.access(script_path, os.X_OK):
-        try:
-            os.chmod(script_path, 0o755)
-        except:
-            printer("[-] Unable to modify permissions on script file, aborting", color=R)
-            return False
-    os.system('clear')
-    subprocess.call(script_path, shell=True)
-    return True
-
-
-def setup_chrome():
-    """
-    Google Chrome has an odd setup path within Kali and hates running as root
-    """
-    # Credit to: http://www.blackmoreops.com/2013/12/01/install-google-chrome-kali-linux-part-2/
-    chrome_repo = 'deb http://dl.google.com/linux/chrome/deb/ stable main'
-
-    # Google Chrome creates its own sources file, let's check for it first
-    if os.path.isfile('/etc/apt/sources.list.d/google-chrome.list'):
-        found = True
-    else:
-        f = open('/etc/apt/sources.list', 'r')
-        found = False
-        for line in f.readlines():
-            if line.startswith("#"):
-                continue
-            if line.strip() == chrome_repo:
-                found = True
-        f.close()
-    if not found:
-        try:
-            f = open('/etc/apt/sources.list', 'a')
-            f.write(chrome_repo)
-            f.close()
-        except OSError:
-            printer("[-] Error trying to write to sources.list file. Installation aborted.", color=R)
-            return
-
-    # Check if Chrome is already installed in its default location
-    if not os.path.isfile('/opt/google/chrome/google-chrome'):
-        subprocess.call('apt-get install -qq -y google-chrome-stable', shell=True)
-
-    # Check Chrome's config file and fix if it is broken for root use
-    inputfile = open('/opt/google/chrome/google-chrome', 'r')
-    contents = inputfile.readlines()
-    inputfile.close()
-    if contents[-1].strip() == '"$@"':
-        # The default config file is back and we must replace it
-        outputfile = open('/tmp/google-chrome', 'w')
-        for line in contents[:-2]:
-            outputfile.write(line)
-        chromefix = 'exec -a "$0" "$HERE/chrome" "$@" --user-data-dir "$PROFILE_DIRECTORY_FLAG"\n'
-        outputfile.write(chromefix)
-        outputfile.close()
-        # Move the new file to overwrite the old
-        try:
-            shutil.move('/tmp/google-chrome', '/opt/google/chrome/google-chrome')
-            #run_helper_script('/opt/google/chrome/google-chrome')
-        except Exception as e:
-            printer("Error moving Google chrome config file: {}".format(e))
-            pass
-    else:
-        print("[*] Google chrome config file appears to be fine, moving along")
-    return
-
-
-def maint_tasks():
-    if gitcolorize is True:
-        subprocess.check_output(['git', 'config', '--global', 'color.ui', 'auto'])
-    if fixportmapper is True:
-        subprocess.call("update-rc.d rpcbind defaults", shell=True)
-        time.sleep(tdelay)
-        subprocess.call("update-rc.d rpcbind enable", shell=True)
-    return
-
-
 def file_filter(f):
     if f in EXCLUDE_FILES:
         return True
@@ -384,14 +362,17 @@ def backup_files(files, dest):
     # Create the compressed archive the files will be sent to
     zname = BACKUP_PATH + os.sep + 'daily-' + time.strftime('%Y%m%d') + '.tar.gz'
     if os.path.exists(zname):
-        response = input("[-] The backup destination file already exists, overwrite? [y, N]: ")
+        #response = input("[-] The backup destination file already exists, overwrite? [y, N]: ")
+        response = input_with_timeout(prompt='[-] The backup destination file already exists, overwrite? [y,N]: ', choice='N', timeout=10)
+        print('\n')
         if response != 'y':
             return False
+    
     z = tarfile.open(zname, mode='w:gz')
 
     # ------ dotfiles -----------
-    for f in os.listdir(usr):
-        fpath = os.path.join(usr, f)
+    for f in os.listdir(USER_PATH):
+        fpath = os.path.join(USER_PATH, f)
         if f.startswith('.') and not os.path.isdir(fpath):
             if f not in EXCLUDE_FILES:
                 # Add to archive if it is not in the excluded files list
@@ -413,6 +394,10 @@ def backup_files(files, dest):
 #          MAIN
 # ------------------------
 def main():
+    printer('================================================================', color=G)
+    printer('                          Kali Updater                          ', color=W)
+    printer('================================================================', color=G)
+    print('\n')
     maint_tasks()
     if DO_CHROME:
         # Do chrome first, this way we can run update just once
@@ -421,21 +406,22 @@ def main():
     print("[*] Kali core update is complete.")
 
     if DO_GIT_REPOS:
-        print("[*] Now updating Github cloned repositories...")
-        do_git_apps(GIT_BASE_DIRS, normal_git_tools, special_git_tools)
+        printer("[*] Now updating Github cloned repositories...", color=G)
+        do_git_apps(GIT_BASE_DIRS, GIT_APPS_LIST)
 
     if DO_BACKUPS:
         if backup_files(BACKUP_FILES, BACKUP_PATH) is True:
-            print("[*] Backups successfully saved to: {}".format(BACKUP_PATH))
+            printer("[*] Backups successfully saved to: {}".format(BACKUP_PATH), color=G)
         else:
             printer("[-] Backups failed to complete", color=R)
 
-    # Update RVM Itself
-    os.system('rvm get stable')
+    # Update RVM, if present on system
+    if os.system('which rvm') == 0:
+        subprocess.call('rvm get stable', shell=True)
     
-    os.system('updatedb')
-    printer("\n[*] Kali Updater is now complete. Listing utility bundle versions below:!\n", color=G)
-    get_versions()
+    subprocess.call('updatedb', shell=True)
+    printer("\n[*] Kali Updater is now complete. Listing vital stats below:\n", color=G)
+    get_specs()
 
     return
 
