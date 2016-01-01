@@ -39,10 +39,12 @@ except NameError:
 # ----------------------------- #
 #      UTILITY FUNCTIONS        #
 # ----------------------------- #
-G  = '\033[32;1m'           # green text coloring
-R  = '\033[31m'             # red text coloring
-O  = '\033[33m'             # orange text coloring
-W  = '\033[0m'              # white (normal) text coloring
+G = '\033[32;1m'           # green text coloring
+R = '\033[31m'             # red text coloring
+O = '\033[33m'             # orange text coloring
+W = '\033[0m'              # white (normal) text coloring
+
+
 def printer(msg, color=O):
     if color == O and DO_DEBUG:
         print("{}[DEBUG] {!s}{}".format(color, msg, W))
@@ -65,6 +67,7 @@ def make_dirs(path):
         os.makedirs(path)
     return
 
+
 def locate(pattern, root='/'):
     '''
     Local all Git repositories in the filesystem,
@@ -78,8 +81,10 @@ def locate(pattern, root='/'):
 class AlarmException(Exception):
     pass
 
+
 def alarm_handler(signum, frame):
     raise AlarmException
+
 
 def input_with_timeout(prompt='', choice=None, timeout=20):
     signal.signal(signal.SIGALRM, alarm_handler)
@@ -97,7 +102,6 @@ def input_with_timeout(prompt='', choice=None, timeout=20):
 # ----------------------------- #
 #              BEGIN            #
 # ----------------------------- #
-
 def maint_tasks():
     # Git color config setting
     subprocess.check_output(['git', 'config', '--global', 'color.ui', 'auto'])
@@ -107,11 +111,13 @@ def maint_tasks():
         subprocess.call("update-rc.d rpcbind enable", shell=True)
     return
 
+
 #    Update Kali core distro using Aptitude
 def core_update():
     print("[*] Now updating Kali and Packages...")
     try:
-        subprocess.call("apt-get -qq update && apt-get -y dist-upgrade && apt-get -y autoclean", shell=True)
+        subprocess.call(
+            "apt-get -qq update && apt-get -y dist-upgrade && apt-get -y autoclean", shell=True)
         print("[*] Successfully updated Kali...moving along...")
     except:
         printer("[-] Error attempting to update Kali. Please try again later.", color=R)
@@ -119,14 +125,14 @@ def core_update():
     return
 
 
-# -----------------------------
+# -------------------------------
 # APT Repository Changes
 # -------------------------------
 def apt_repo_change(repo_string, sources_file=None):
     ''' Accept a repo string and/or file name to determine
     if the desired repository is already present for apt-get.
     If it is not, it will create the string or file.
-    
+
     Usage: apt_repo_change(<string>, <filename>)
     '''
     # If a sources file is known, check existance first
@@ -149,7 +155,7 @@ def apt_repo_change(repo_string, sources_file=None):
                 with open('/etc/apt/sources.list', 'a') as f:
                     f.write(repo_string)
             except OSError:
-                printer("[-] Error trying to write to sources.list file. Installation aborted.", color=R)
+                print("{}----[-]{} Error trying to write to sources.list file. Installation aborted.".format(R, W))
     return
 
 
@@ -189,18 +195,23 @@ def git_owner(ap):
 
 
 def git_update(git_path):
-    ''' 
+    '''
     Update existing Git Cloned Repositories
     '''
     if os.path.isdir(os.path.join(git_path, '.git')):
-        printer("[*] Updating Git Repo: {}".format(os.path.split(git_path)[1]), color=G)
-        printer("[*] Git Owner: {}".format(git_owner(git_path)), color=G)
+        print("{0}[*]{1} Updating Git Repo: {2}\t[{0}Path:{1} {3}{0}]{1}".format(G, W, os.path.split(git_path)[1], git_path))
+        try:
+            print("{0}[*]{1} Git Owner: {2}".format(G, W, git_owner(git_path)))
+        except IndexError:
+            # There is no owner string listed in this repository's git config file, so ignore
+            pass
+        
         try:
             os.chdir(git_path)
             subprocess.call('git pull', shell=True)
             time.sleep(tdelay)
         except:
-            printer("[-] Error updating Git Repo: {}".format(git_path), color=R)
+            print("{}----[-]{} Error updating Git Repo: {}".format(R, W, git_path))
     return
 
 
@@ -208,17 +219,17 @@ def do_git_apps(path_list, git_tools):
     """
     Will process a dictionary of tools
     If dict value is a dict, it will process post-clone installation
-    
+
     Usage: do_git_apps(list(base_install_dir), dict(git_tools))
     """
-    
-    fnull = open(os.devnull, 'w')
-        
+
+    # fnull = open(os.devnull, 'w')
+
     # Find all Repositories on the system and update them all?
-    printer("[*] Searching Filesystem for all Git Clones...", color=W)
+    print("{0}----[*]{1} Searching Filesystem for all Git Clones...".format(G, W))
     my_apps = []
-    
-    ## -- Update Existing Repos
+
+    # -- Update Existing Repos
     for i in locate('.git'):
         # For each found Git Repo, add to my_apps list and call update
         dir_repo, tail = os.path.split(i)
@@ -239,7 +250,7 @@ def do_git_apps(path_list, git_tools):
         if not install_path:
             # New repo clones are always installed in first directory path
             install_path = path_list[0]
-        
+
         app_path = os.path.join(install_path, app)
         printer("Application Path: {}".format(app_path), color=O)
         # Avoid redundancy, remove apps from list if we're checking it already
@@ -248,10 +259,9 @@ def do_git_apps(path_list, git_tools):
             continue
         printer("\n[*] Installing Repository: {}".format(app), color=G)
         # If new, install it
-        git_new(app, app_path, install_path, url, app_script=app_script, 
-            cmd=command, upstream=upstream)
+        git_new(app, app_path, install_path, url, app_script=app_script,
+                cmd=command, upstream=upstream)
     return
-
 
 
 def run_helper_script(script_path):
@@ -300,7 +310,7 @@ def setup_chrome():
         # Move the new file to overwrite the old
         try:
             shutil.move('/tmp/google-chrome', '/opt/google/chrome/google-chrome')
-            #run_helper_script('/opt/google/chrome/google-chrome')
+            # BROKEN: run_helper_script('/opt/google/chrome/google-chrome')
         except Exception as e:
             printer("Error moving Google chrome config file: {}".format(e))
             pass
@@ -312,9 +322,8 @@ def setup_chrome():
 # TODO: Add code to compare current versions with those found to indicate update available
 # Get installed version of supporting programming applications with dpkg
 def get_specs():
-    
-    print("\t{}[*] Active Shell:{}\t{!s}".format(G, W, os.environ['SHELL'])
-    
+    print("\t{}[*] Active Shell:{}\t{!s}".format(G, W, os.environ['SHELL']))
+
     pversion = str(sys.version_info[0]) + '.' + str(sys.version_info[1]) + '.' + str(sys.version_info[2])
     print("\t{}[*] Python Version:{}\t{}".format(G, W, pversion))
 
@@ -362,12 +371,13 @@ def backup_files(files, dest):
     # Create the compressed archive the files will be sent to
     zname = BACKUP_PATH + os.sep + 'daily-' + time.strftime('%Y%m%d') + '.tar.gz'
     if os.path.exists(zname):
-        #response = input("[-] The backup destination file already exists, overwrite? [y, N]: ")
-        response = input_with_timeout(prompt='[-] The backup destination file already exists, overwrite? [y,N]: ', choice='N', timeout=10)
+        # response = input("[-] The backup destination file already exists, overwrite? [y, N]: ")
+        response = input_with_timeout(  prompt='[-] The backup destination file already exists, overwrite? [y,N]: ',
+                                        choice='N', timeout=10)
         print('\n')
         if response != 'y':
             return False
-    
+
     z = tarfile.open(zname, mode='w:gz')
 
     # ------ dotfiles -----------
@@ -406,19 +416,19 @@ def main():
     print("[*] Kali core update is complete.")
 
     if DO_GIT_REPOS:
-        printer("[*] Now updating Github cloned repositories...", color=G)
+        print("{0}----[*]{1} Now updating Github cloned repositories...".format(G, W))
         do_git_apps(GIT_BASE_DIRS, GIT_APPS_LIST)
 
     if DO_BACKUPS:
         if backup_files(BACKUP_FILES, BACKUP_PATH) is True:
-            printer("[*] Backups successfully saved to: {}".format(BACKUP_PATH), color=G)
+            print("{0}----[*] Backups successfully saved to:{1} {2}".format(G, W, BACKUP_PATH))
         else:
             printer("[-] Backups failed to complete", color=R)
 
     # Update RVM, if present on system
     if os.system('which rvm') == 0:
         subprocess.call('rvm get stable', shell=True)
-    
+
     subprocess.call('updatedb', shell=True)
     printer("\n[*] Kali Updater is now complete. Listing vital stats below:\n", color=G)
     get_specs()
