@@ -102,7 +102,6 @@ GIT_APPS_LIST = {
 BACKUP_FILES = [
     USER_PATH + '/.local/',
     USER_PATH + '/.msf4/',
-    '/usr/share/geany/filetype_extensions.conf',
     ]
 
 # Dotfiles are backed up, so these are exclusions
