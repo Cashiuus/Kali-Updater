@@ -16,13 +16,13 @@ USER_PATH = os.path.expanduser('~')
 # Want to fix portmapper issue at boot?
 fixportmapper   = False
 # Backup user-specified files to an archive file
-DO_BACKUPS      = True
+DO_BACKUPS      = False
 # Setup system for Google Chrome; if installed it will update
 DO_CHROME       = False
 # Update all known Git repositories with 'git pull'
-DO_GIT_REPOS    = True
+DO_GIT_REPOS    = False
 # Update the Veil Framework using its own script
-UPDATE_VEIL     = True
+UPDATE_VEIL     = False
 
 # List here folders that you are using for all git repos
 # YOUR PRIMARY GIT DIRECTORY SHOULD BE FIRST. This is where
@@ -43,40 +43,40 @@ GIT_APPS_LIST = {
         {
         'url': 'https://github.com/trustedsec/artillery',
         },
-    'creds.py': 
+    'creds.py':
         {
         'url': 'https://github.com/DanMcInerney/creds.py',
         },
-    'ftpmap': 
+    'ftpmap':
         {
         'url': 'https://github.com/Hypsurus/ftpmap',
         'command': './configure && make && make install',
         },
-    'lair': 
-        {
-        'url': 'https://github.com/fishnetsecurity/Lair',
-        },
+    #'lair':
+    #    {
+    #    'url': 'https://github.com/fishnetsecurity/Lair',
+    #    },
     'mainframed' :
         {
         'url': 'https://github.com/mainframed/Mainframed',
         },
-    'powersploit': 
+    'powersploit':
         {
         'url': 'https://github.com/mattifestation/PowerSploit',
         },
-    'pupy': 
+    'pupy':
         {
         'url': 'https://github.com/n1nj4sec/pupy',
-        }
-    'Responder': 
+        },
+    'Responder':
         {
         'url': 'https://github.com/SpiderLabs/Responder',
         },
-    'seclists': 
+    'seclists':
         {
         'url': 'https://github.com/danielmiessler/SecLists',
         },
-    'vfeed': 
+    'vfeed':
         {
         'url': 'https://github.com/toolswatch/vFeed',
         },
