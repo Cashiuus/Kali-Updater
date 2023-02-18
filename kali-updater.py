@@ -3,8 +3,8 @@
 # ==============================================================================
 # File:         kali-updater.py
 # Depends:
-# Compat:       2.7+
-# Created:      09/21/2015  -   Revised: 02/20/2016
+# Compat:       3.9+
+# Created:      09/21/2015  -   Revised: 02/20/2023
 # Author:       Cashiuus - Cashiuus@gmail.com
 #
 # Purpose:      Update kali, git repositories, and other helpers all at once.
@@ -16,13 +16,9 @@
 #   2. Update defined list of Git Clones; if nonexistant you can add them
 #   3. Create a backup archive of specified files--See default.py
 # ====================================================================
-from __future__ import absolute_import
-from __future__ import print_function
-__version__ = 0.8
+__version__ = 0.9
 __author__ = 'Cashiuus'
-# ===[ Python 2/3 Compatibilities ]=== #
-try: input = raw_input
-except NameError: pass
+
 ## =======[ IMPORT & CONSTANTS ]========= ##
 import fnmatch
 import os
@@ -43,10 +39,13 @@ except:
 
 ## ========[ TEXT COLORS ]=============== ##
 GREEN = '\033[32;1m'    # Green
+BLUE = '\033[01;34m'    # Heading
 YELLOW = '\033[01;33m'  # Warnings/Information
 RED = '\033[31m'        # Red/Error
 ORANGE = '\033[33m'     # Orange/Debug
+PURPLE = '\033[01;35m'  # Other
 RESET = '\033[00m'      # Normal/White
+
 # ========================[  CORE UTILITY FUNCTIONS  ]======================== #
 def printer(msg, color=ORANGE):
     if color == ORANGE and DO_DEBUG:
@@ -72,7 +71,7 @@ def make_dirs(path):
 # ==========================[  BEGIN APPLICATION  ]========================== #
 def locate(pattern, root='/'):
     '''
-    Local all Git repositories in the filesystem,
+    Locate all Git repositories in the filesystem,
     creating a list in order to update them all.
     '''
     for path, dirs, files in os.walk(os.path.abspath(root)):
